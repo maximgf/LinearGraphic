@@ -1,35 +1,82 @@
-using SkiaSharp;
+using System.Linq;
 using LiveChartsCore;
 using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.Painting;
 using LiveChartsCore.Kernel.Sketches;
+using SkiaSharp;
+using Model;
+using System;
 
 namespace ViewModels;
 
 public class LinearGraphViewModel
 {
-    public ISeries[] Series { get; set; } = [
-        new LineSeries<double> { Values = [200, 558, 458, 249, 457, 339, 587] },
-        new LineSeries<double> { Values = [210, 400, 300, 350, 219, 323, 618] },
-    ];
+    private readonly PointsContext _pointsContext;
+    private readonly GraphSettings _graphSettings;
 
-    public ICartesianAxis[] XAxes { get; set; } = [
-        new Axis
-        {
-            CrosshairLabelsBackground = SKColors.DarkOrange.AsLvcColor(),
-            CrosshairLabelsPaint = new SolidColorPaint(SKColors.DarkRed),
-            CrosshairPaint = new SolidColorPaint(SKColors.DarkOrange, 1),
-            Labeler = value => value.ToString("N2")
-        }
-    ];
+    public LinearGraphViewModel(PointsContext pointsContext, GraphSettings graphSettings)
+    {
+        _pointsContext = pointsContext;
+        _graphSettings = graphSettings;
 
-    public ICartesianAxis[] YAxes { get; set; } = [
-        new Axis
+        // Подписываемся на изменения
+        _pointsContext.PropertyChanged += (s, e) => UpdateSeries();
+        _graphSettings.PropertyChanged += (s, e) => UpdateAxes();
+
+        // Инициализируем серии и оси
+        UpdateSeries();
+        UpdateAxes();
+    }
+
+    public ISeries[] Series { get; set; } = Array.Empty<ISeries>();
+    public ICartesianAxis[] XAxes { get; set; } = Array.Empty<ICartesianAxis>();
+    public ICartesianAxis[] YAxes { get; set; } = Array.Empty<ICartesianAxis>();
+
+    private void UpdateSeries()
+    {
+        // Берем только необходимое количество точек согласно настройкам
+        var pointsToDisplay = _pointsContext.Arr
+            .Take(_graphSettings.DisplayPoints)
+            .ToArray();
+
+        Series = new ISeries[]
         {
-            CrosshairLabelsBackground = SKColors.DarkOrange.AsLvcColor(),
-            CrosshairLabelsPaint = new SolidColorPaint(SKColors.DarkRed),
-            CrosshairPaint = new SolidColorPaint(SKColors.DarkOrange, 1),
-            CrosshairSnapEnabled = true // snapping is also supported
-        }
-    ];
+            new LineSeries<Point>
+            {
+                Values = pointsToDisplay,
+                Mapping = (point, index) => new LiveChartsCore.Kernel.Coordinate(point.X, point.Y),
+                GeometrySize = 0,
+                LineSmoothness = _graphSettings.Extrapolation ? 1 : 0
+            }
+        };
+    }
+
+    private void UpdateAxes()
+    {
+        XAxes = new ICartesianAxis[]
+        {
+            new Axis
+            {
+                CrosshairLabelsBackground = SKColors.DarkOrange.AsLvcColor(),
+                CrosshairLabelsPaint = new SolidColorPaint(SKColors.DarkRed),
+                CrosshairPaint = new SolidColorPaint(SKColors.DarkOrange, 1),
+                Labeler = value => value.ToString("N2"),
+                MinLimit = _graphSettings.ChartXLevelMin,
+                MaxLimit = _graphSettings.ChartXLevelMax
+            }
+        };
+
+        YAxes = new ICartesianAxis[]
+        {
+            new Axis
+            {
+                CrosshairLabelsBackground = SKColors.DarkOrange.AsLvcColor(),
+                CrosshairLabelsPaint = new SolidColorPaint(SKColors.DarkRed),
+                CrosshairPaint = new SolidColorPaint(SKColors.DarkOrange, 1),
+                CrosshairSnapEnabled = true,
+                MinLimit = _graphSettings.ChartYLevelMin,
+                MaxLimit = _graphSettings.ChartYLevelMax
+            }
+        };
+    }
 }

@@ -4,9 +4,6 @@
              xmlns:lvc="using:LiveChartsCore.SkiaSharpView.Avalonia"
              xmlns:vms="using:ViewModels"
              x:DataType="vms:LinearGraphViewModel">
-  <UserControl.DataContext>
-    <vms:LinearGraphViewModel/>
-  </UserControl.DataContext>
     <Grid>
         <lvc:CartesianChart
             Series="{Binding Series}"
