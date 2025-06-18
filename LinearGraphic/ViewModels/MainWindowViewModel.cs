@@ -1,6 +1,9 @@
 ﻿using Model;
+using System;
+using System.Threading;
 
 namespace ViewModels;
+
 public partial class MainWindowViewModel : ViewModelBase
 {
     public PointsContext PointsContext { get; }
@@ -9,24 +12,17 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public MainWindowViewModel()
     {
-        // Инициализация с некоторыми значениями по умолчанию
         PointsContext = new PointsContext(1000);
         GraphSettings = new GraphSettings
         {
             Extrapolation = true,
-            DisplayPoints = 100,
-            ChartYLevelMin = 0,
-            ChartYLevelMax = 1000,
+            DisplayPoints = 1000,
+            ChartYLevelMin = -150,
+            ChartYLevelMax = 150,
             ChartXLevelMin = 0,
-            ChartXLevelMax = 100
+            ChartXLevelMax = 1000
         };
 
         LinearGraphViewModel = new LinearGraphViewModel(PointsContext, GraphSettings);
-
-        // Добавим тестовые данные
-        for (int i = 0; i < 100; i++)
-        {
-            PointsContext.Add(new Point(i, i * 10));
-        }
     }
 }
