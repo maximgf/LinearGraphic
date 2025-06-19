@@ -20,7 +20,7 @@ public class PointsContext : INotifyPropertyChanged
         _count = size;
     }
 
-    // Конструктор, принимающий только размер массива и заполняющий его случайными значениями
+    // Конструктор, принимающий только размер массива и заполняющий его значениями
     public PointsContext(int size)
     {
         _arr = new Point[size];
@@ -78,6 +78,15 @@ public class PointsContext : INotifyPropertyChanged
             throw new IndexOutOfRangeException();
 
         _arr[index] = newPoint;
+        OnPropertyChanged(nameof(Arr));
+    }
+
+    public void UpdateAllPoints(Point[] newPoints)
+    {
+        if (newPoints.Length != _count)
+            throw new ArgumentException("Invalid array size");
+        
+        Array.Copy(newPoints, _arr, _count);
         OnPropertyChanged(nameof(Arr));
     }
 
