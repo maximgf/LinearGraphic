@@ -1,6 +1,8 @@
-﻿using Model;
-using System;
+﻿using System;
 using Avalonia.Threading;
+using ViewModels;
+using Core;
+using Model;
 
 namespace ViewModels;
 
@@ -24,8 +26,10 @@ public partial class MainWindowViewModel : ViewModelBase
             ChartXLevelMin = 0,
             ChartXLevelMax = 1000
         };
- 
-        LinearGraphViewModel = new LinearGraphViewModel(DataPoints, GraphSettings);
+
+        var graphProvider = GraphControlFactory.CreateProvider(GraphControlFactory.GraphProviderType.CustomCanvas);
+        
+        LinearGraphViewModel = new LinearGraphViewModel(DataPoints, GraphSettings, graphProvider);
         
         _timer = new DispatcherTimer();
         _timer.Interval = TimeSpan.FromSeconds(0.1);
