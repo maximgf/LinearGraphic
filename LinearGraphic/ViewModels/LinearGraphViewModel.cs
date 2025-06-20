@@ -1,6 +1,7 @@
 using Model;
 using Core;
 using System.Linq;
+using System.Collections.Generic;
 
 namespace ViewModels;
 
@@ -32,7 +33,23 @@ public class LinearGraphViewModel
 
     private void UpdateSeries()
     {
-        _graphProvider.UpdatePoints(_pointsContext.Arr.Take(_graphSettings.DisplayPoints).ToArray());
+        var series = new Dictionary<string, Point[]>();
+        
+        series["Common"] = _pointsContext.Arr.Take(_graphSettings.DisplayPoints).ToArray();
+        
+        if (_pointsContext is MultiPointsContext multiContext)
+        {
+            if (multiContext.MaxPoints != null)
+                series["Max"] = multiContext.MaxPoints.Take(_graphSettings.DisplayPoints).ToArray();
+            
+            if (multiContext.MinPoints != null)
+                series["Min"] = multiContext.MinPoints.Take(_graphSettings.DisplayPoints).ToArray();
+            
+            if (multiContext.AvgPoints != null)
+                series["Average"] = multiContext.AvgPoints.Take(_graphSettings.DisplayPoints).ToArray();
+        }
+        
+        _graphProvider.UpdateMultipleSeries(series);
     }
 
     private void UpdateAxes()

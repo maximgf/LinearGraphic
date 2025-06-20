@@ -2,11 +2,9 @@ using LiveChartsCore;
 using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.Painting;
 using LiveChartsCore.SkiaSharpView.Avalonia;
-using LiveChartsCore.Kernel.Sketches;
 using SkiaSharp;
 using Model;
-using System;
-using Avalonia.Controls;
+using System.Collections.Generic;
 using Avalonia.Media;
 
 namespace Core;
@@ -16,8 +14,8 @@ public class LiveChartsProvider : IGraphProvider
     private GraphSettings? _settings;
     private readonly Axis _xAxis;
     private readonly Axis _yAxis;
-    private ISeries[] _series;
     private readonly CartesianChart _chart;
+    private readonly Dictionary<string, LineSeries<Point>> _seriesCache = new();
 
     public object GetGraphControl() => _chart;
 
@@ -41,22 +39,8 @@ public class LiveChartsProvider : IGraphProvider
             SeparatorsPaint = new SolidColorPaint(SKColors.LightGray) { StrokeThickness = 1 }
         };
 
-        _series = new ISeries[]
-        {
-            new LineSeries<Model.Point>
-            {
-                Name = "Data Series",
-                Values = Array.Empty<Model.Point>(),
-                Mapping = (point, index) => new LiveChartsCore.Kernel.Coordinate(point.X, point.Y),
-                GeometrySize = 0,
-                Stroke = new SolidColorPaint(SKColors.DarkOrange, 2),
-                Fill = null
-            }
-        };
-
         _chart = new CartesianChart
         {
-            Series = _series,
             XAxes = new[] { _xAxis },
             YAxes = new[] { _yAxis },
             Background = Brushes.White
@@ -70,14 +54,52 @@ public class LiveChartsProvider : IGraphProvider
         _xAxis.MaxLimit = settings.ChartXLevelMax;
         _yAxis.MinLimit = settings.ChartYLevelMin;
         _yAxis.MaxLimit = settings.ChartYLevelMax;
+        _xAxis.SeparatorsAtCenter = false;
+        _xAxis.ForceStepToMin = true;
+        _xAxis.MinStep = settings.GridStepX;
+        _yAxis.ForceStepToMin = true;
+        _yAxis.MinStep = settings.GridStepY;
     }
 
-    public void UpdatePoints(Model.Point[] points)
+    public void UpdateMultipleSeries(Dictionary<string, Point[]> series)
     {
-        if (_series[0] is LineSeries<Model.Point> lineSeries)
+        var newSeries = new List<ISeries>();
+        
+        foreach (var kv in series)
         {
-            lineSeries.Values = points;
-            lineSeries.LineSmoothness = _settings?.Extrapolation == true ? 1 : 0;
+            if (!_seriesCache.TryGetValue(kv.Key, out var lineSeries))
+            {
+                var color = GetColorForSeries(kv.Key);
+                lineSeries = new LineSeries<Point>
+                {
+                    Name = kv.Key,
+                    Values = kv.Value,
+                    Mapping = (p, _) => new(p.X, p.Y),
+                    GeometrySize = 0,
+                    Stroke = new SolidColorPaint(color, 2),
+                    Fill = null,
+                    LineSmoothness = kv.Key == "Common" && _settings?.Extrapolation == true ? 1 : 0
+                };
+                _seriesCache[kv.Key] = lineSeries;
+            }
+            else
+            {
+                lineSeries.Values = kv.Value;
+            }
+            newSeries.Add(lineSeries);
         }
+
+        _chart.Series = newSeries;
+    }
+
+    private static SKColor GetColorForSeries(string name)
+    {
+        return name switch
+        {
+            "Max" => SKColors.Red,
+            "Min" => SKColors.Blue,
+            "Average" => SKColors.Green,
+            _ => SKColors.DarkOrange,
+        };
     }
 }

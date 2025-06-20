@@ -6,36 +6,21 @@ namespace Model;
 
 public class PointsContext : INotifyPropertyChanged
 {
-    private Point[] _arr;
-    private int _count;
+    protected Point[] _arr;
+    protected int _count;
 
-    // Конструктор, принимающий массив и его размер
-    public PointsContext(Point[] sourceArray, int size)
-    {
-        if (size > sourceArray.Length)
-            throw new ArgumentException(nameof(size));
-
-        _arr = new Point[size];
-        Array.Copy(sourceArray, _arr, size);
-        _count = size;
-    }
-
-    // Конструктор, принимающий только размер массива и заполняющий его значениями
     public PointsContext(int size)
     {
         _arr = new Point[size];
         _count = size;
         
-        // Параметры синусоиды
-        double amplitude = 100;   // Амплитуда
-        double periods = 4;       // Количество полных периодов на всем графике
-        double step = 2 * Math.PI * periods / size; // Шаг по X
+        var random = new Random();
+        int amplitude = 100;
         
         for (int i = 0; i < size; i++)
         {
-            double x = i;
-            double y = amplitude * Math.Sin(i * step);
-            _arr[i] = new Point(x, y);
+            double y = random.NextDouble() * 2 * amplitude - amplitude;  
+            _arr[i] = new Point(i, y);
         }
     }
 
@@ -51,37 +36,9 @@ public class PointsContext : INotifyPropertyChanged
         }
     }
 
-    public int Count
-    {
-        get => _count;
-        private set
-        {
-            _count = value;
-            OnPropertyChanged();
-        }
-    }
+    public int Count => _count;
 
-    public void Add(Point point)
-    {
-        if (_count < _arr.Length)
-        {
-            _arr[_count] = point;
-            _count += 1;
-            Count = _count;
-            OnPropertyChanged(nameof(Arr));
-        }
-    }
-
-    public void UpdatePoint(int index, Point newPoint)
-    {
-        if (index < 0 || index >= _count)
-            throw new IndexOutOfRangeException();
-
-        _arr[index] = newPoint;
-        OnPropertyChanged(nameof(Arr));
-    }
-
-    public void UpdateAllPoints(Point[] newPoints)
+    public virtual void UpdateAllPoints(Point[] newPoints)
     {
         if (newPoints.Length != _count)
             throw new ArgumentException("Invalid array size");
