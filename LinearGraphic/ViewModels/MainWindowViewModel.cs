@@ -28,7 +28,7 @@ public partial class MainWindowViewModel : ViewModelBase
             GridStepY = 50
         };
 
-        var graphProvider = GraphControlFactory.CreateProvider(GraphControlFactory.GraphProviderType.LiveCharts);
+        var graphProvider = GraphControlFactory.CreateProvider(GraphControlFactory.GraphProviderType.CustomCanvas);
         LinearGraphViewModel = new LinearGraphViewModel(DataPoints, GraphSettings, graphProvider);
         
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(0.1) };
