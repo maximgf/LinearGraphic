@@ -18,6 +18,8 @@ public class CustomCanvasProvider : IGraphProvider
     private StackPanel? _legendPanel;
     private Border? _tooltipBorder;
     private TextBlock? _tooltipTextBlock;
+    private double _xAxisPosition;
+    private double _yAxisPosition;
 
     public object GetGraphControl() => _canvas;
 
@@ -26,6 +28,10 @@ public class CustomCanvasProvider : IGraphProvider
         _settings = settings;
         _canvas.Width = settings.ChartXLevelMax - settings.ChartXLevelMin;
         _canvas.Height = settings.ChartYLevelMax - settings.ChartYLevelMin;
+        
+        // Calculate axis positions
+        _yAxisPosition = (0 - settings.ChartXLevelMin) * _canvas.Width / (settings.ChartXLevelMax - settings.ChartXLevelMin);
+        _xAxisPosition = _canvas.Height - (settings.ChartYLevelMin - settings.ChartYLevelMin) * _canvas.Height / (settings.ChartYLevelMax - settings.ChartYLevelMin);
         
         _canvas.Children.Clear();
         DrawGrid();
@@ -118,7 +124,7 @@ public class CustomCanvasProvider : IGraphProvider
     {
         if (_settings == null) return;
 
-        // X-axis labels
+        // X-axis labels (bottom)
         for (double x = _settings.ChartXLevelMin; x <= _settings.ChartXLevelMax; x += _settings.GridStepX)
         {
             var scaledX = (x - _settings.ChartXLevelMin) * _canvas.Width / (_settings.ChartXLevelMax - _settings.ChartXLevelMin);
@@ -131,11 +137,11 @@ public class CustomCanvasProvider : IGraphProvider
             };
             
             Canvas.SetLeft(textBlock, scaledX - 10);
-            Canvas.SetTop(textBlock, _canvas.Height / 2 + 5);
+            Canvas.SetTop(textBlock, _xAxisPosition + 5);
             _canvas.Children.Add(textBlock);
         }
 
-        // Y-axis labels
+        // Y-axis labels (left)
         for (double y = _settings.ChartYLevelMin; y <= _settings.ChartYLevelMax; y += _settings.GridStepY)
         {
             var scaledY = _canvas.Height - (y - _settings.ChartYLevelMin) * _canvas.Height / (_settings.ChartYLevelMax - _settings.ChartYLevelMin);
@@ -144,10 +150,11 @@ public class CustomCanvasProvider : IGraphProvider
                 Text = y.ToString("0"),
                 FontSize = 10,
                 Foreground = Brushes.Black,
-                VerticalAlignment = VerticalAlignment.Center
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Right
             };
             
-            Canvas.SetLeft(textBlock, _canvas.Width / 2 + 5);
+            Canvas.SetLeft(textBlock, _yAxisPosition - 25);
             Canvas.SetTop(textBlock, scaledY - 8);
             _canvas.Children.Add(textBlock);
         }
@@ -159,14 +166,31 @@ public class CustomCanvasProvider : IGraphProvider
             return;
 
         var position = e.GetPosition(_canvas);
+        
+        // Check if pointer is within canvas bounds
+        if (position.X < 0 || position.X > _canvas.Width || position.Y < 0 || position.Y > _canvas.Height)
+        {
+            _tooltipBorder.IsVisible = false;
+            return;
+        }
+
         var dataX = position.X / _canvas.Width * (_settings.ChartXLevelMax - _settings.ChartXLevelMin) + _settings.ChartXLevelMin;
         var dataY = _settings.ChartYLevelMax - position.Y / _canvas.Height * (_settings.ChartYLevelMax - _settings.ChartYLevelMin);
 
         _tooltipTextBlock.Text = $"X: {dataX:0.00}\nY: {dataY:0.00}";
         _tooltipBorder.IsVisible = true;
         
-        Canvas.SetLeft(_tooltipBorder, position.X + 10);
-        Canvas.SetTop(_tooltipBorder, position.Y + 10);
+        // Position tooltip near pointer but ensure it stays within canvas bounds
+        double left = position.X + 10;
+        double top = position.Y + 10;
+        
+        if (left + _tooltipBorder.Bounds.Width > _canvas.Width)
+            left = position.X - _tooltipBorder.Bounds.Width - 10;
+        if (top + _tooltipBorder.Bounds.Height > _canvas.Height)
+            top = position.Y - _tooltipBorder.Bounds.Height - 10;
+
+        Canvas.SetLeft(_tooltipBorder, left);
+        Canvas.SetTop(_tooltipBorder, top);
     }
 
     private void Canvas_PointerExited(object? sender, PointerEventArgs e)
@@ -213,18 +237,20 @@ public class CustomCanvasProvider : IGraphProvider
     {
         if (_settings == null) return;
 
+        // X axis (at y=ChartYLevelMin position)
         _canvas.Children.Add(new Line
         {
-            StartPoint = new(0, _canvas.Height / 2),
-            EndPoint = new(_canvas.Width, _canvas.Height / 2),
+            StartPoint = new(0, _xAxisPosition),
+            EndPoint = new(_canvas.Width, _xAxisPosition),
             Stroke = Brushes.Black,
             StrokeThickness = 1
         });
 
+        // Y axis (at x=0 position)
         _canvas.Children.Add(new Line
         {
-            StartPoint = new(_canvas.Width / 2, 0),
-            EndPoint = new(_canvas.Width / 2, _canvas.Height),
+            StartPoint = new(_yAxisPosition, 0),
+            EndPoint = new(_yAxisPosition, _canvas.Height),
             Stroke = Brushes.Black,
             StrokeThickness = 1
         });
