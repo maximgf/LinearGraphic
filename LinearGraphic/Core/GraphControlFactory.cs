@@ -4,8 +4,8 @@ namespace Core;
 
 public static class GraphControlFactory
 {
-    public enum GraphProviderType { LiveCharts, CustomCanvas }
-
+    public enum GraphProviderType { LiveCharts, CustomCanvas}
+    
     public static IGraphProvider CreateProvider(GraphProviderType type)
     {
         return type switch

@@ -28,11 +28,10 @@ public class CustomCanvasProvider : IGraphProvider
         _settings = settings;
         _canvas.Width = settings.ChartXLevelMax - settings.ChartXLevelMin;
         _canvas.Height = settings.ChartYLevelMax - settings.ChartYLevelMin;
-        
-        // Calculate axis positions
-        _yAxisPosition = (0 - settings.ChartXLevelMin) * _canvas.Width / (settings.ChartXLevelMax - settings.ChartXLevelMin);
-        _xAxisPosition = _canvas.Height - (settings.ChartYLevelMin - settings.ChartYLevelMin) * _canvas.Height / (settings.ChartYLevelMax - settings.ChartYLevelMin);
-        
+
+        _yAxisPosition = 0;
+        _xAxisPosition = _canvas.Height;
+
         _canvas.Children.Clear();
         DrawGrid();
         DrawAxes();
@@ -124,7 +123,6 @@ public class CustomCanvasProvider : IGraphProvider
     {
         if (_settings == null) return;
 
-        // X-axis labels (bottom)
         for (double x = _settings.ChartXLevelMin; x <= _settings.ChartXLevelMax; x += _settings.GridStepX)
         {
             var scaledX = (x - _settings.ChartXLevelMin) * _canvas.Width / (_settings.ChartXLevelMax - _settings.ChartXLevelMin);
@@ -141,7 +139,6 @@ public class CustomCanvasProvider : IGraphProvider
             _canvas.Children.Add(textBlock);
         }
 
-        // Y-axis labels (left)
         for (double y = _settings.ChartYLevelMin; y <= _settings.ChartYLevelMax; y += _settings.GridStepY)
         {
             var scaledY = _canvas.Height - (y - _settings.ChartYLevelMin) * _canvas.Height / (_settings.ChartYLevelMax - _settings.ChartYLevelMin);
@@ -166,8 +163,7 @@ public class CustomCanvasProvider : IGraphProvider
             return;
 
         var position = e.GetPosition(_canvas);
-        
-        // Check if pointer is within canvas bounds
+
         if (position.X < 0 || position.X > _canvas.Width || position.Y < 0 || position.Y > _canvas.Height)
         {
             _tooltipBorder.IsVisible = false;
@@ -179,8 +175,7 @@ public class CustomCanvasProvider : IGraphProvider
 
         _tooltipTextBlock.Text = $"X: {dataX:0.00}\nY: {dataY:0.00}";
         _tooltipBorder.IsVisible = true;
-        
-        // Position tooltip near pointer but ensure it stays within canvas bounds
+
         double left = position.X + 10;
         double top = position.Y + 10;
         
@@ -237,7 +232,6 @@ public class CustomCanvasProvider : IGraphProvider
     {
         if (_settings == null) return;
 
-        // X axis (at y=ChartYLevelMin position)
         _canvas.Children.Add(new Line
         {
             StartPoint = new(0, _xAxisPosition),
@@ -246,7 +240,6 @@ public class CustomCanvasProvider : IGraphProvider
             StrokeThickness = 1
         });
 
-        // Y axis (at x=0 position)
         _canvas.Children.Add(new Line
         {
             StartPoint = new(_yAxisPosition, 0),
