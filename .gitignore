@@ -132,4 +132,6 @@ $RECYCLE.BIN/
 
 _NCrunch*
 
-.vs/
+.vscode
+
+.idea
