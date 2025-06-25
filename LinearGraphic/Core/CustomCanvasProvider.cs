@@ -360,38 +360,42 @@ public class CustomCanvasProvider : IGraphProvider
     private void OnCanvasPointerMoved(object? sender, PointerEventArgs e)
     {
         if (_settings == null || _tooltip == null || _crosshairX == null || _crosshairY == null) return;
-        
-        // Показываем элементы, как только мышь заходит на холст
-        _tooltip.IsVisible = true;
-        _crosshairX.IsVisible = true;
-        _crosshairY.IsVisible = true;
-        
+
         var pos = e.GetPosition(_canvas);
         
         var plotAreaWidth = _canvas.Bounds.Width - _padding.Left - _padding.Right;
         var plotAreaHeight = _canvas.Bounds.Height - _padding.Top - _padding.Bottom;
+
+        // Проверяем, находится ли курсор внутри области рисования графика
+        bool isInsidePlotArea = pos.X >= _padding.Left && pos.X <= _padding.Left + plotAreaWidth &&
+                                pos.Y >= _padding.Top && pos.Y <= _padding.Top + plotAreaHeight;
         
-        if (plotAreaWidth <= 0 || plotAreaHeight <= 0) return;
+        if (isInsidePlotArea)
+        {
+            _tooltip.IsVisible = true;
+            _crosshairX.IsVisible = true;
+            _crosshairY.IsVisible = true;
 
-        // "Прижимаем" координаты к границам области графика
-        var clampedX = Math.Max(_padding.Left, Math.Min(pos.X, _padding.Left + plotAreaWidth));
-        var clampedY = Math.Max(_padding.Top, Math.Min(pos.Y, _padding.Top + plotAreaHeight));
-        var clampedPos = new Avalonia.Point(clampedX, clampedY);
+            // Обновляем позицию перекрестия
+            _crosshairX.StartPoint = new Avalonia.Point(_padding.Left, pos.Y);
+            _crosshairX.EndPoint = new Avalonia.Point(_padding.Left + plotAreaWidth, pos.Y);
+            
+            _crosshairY.StartPoint = new Avalonia.Point(pos.X, _padding.Top);
+            _crosshairY.EndPoint = new Avalonia.Point(pos.X, _padding.Top + plotAreaHeight);
 
-        // Обновляем позицию перекрестия, используя "прижатые" координаты
-        _crosshairX.StartPoint = new Avalonia.Point(_padding.Left, clampedY);
-        _crosshairX.EndPoint = new Avalonia.Point(_padding.Left + plotAreaWidth, clampedY);
-        
-        _crosshairY.StartPoint = new Avalonia.Point(clampedX, _padding.Top);
-        _crosshairY.EndPoint = new Avalonia.Point(clampedX, _padding.Top + plotAreaHeight);
+            // Преобразуем координаты курсора в значения на осях
+            var dataPoint = InverseScalePoint(pos);
+            _tooltip.Text = $"X: {dataPoint.X:F1}\nY: {dataPoint.Y:F1}";
 
-        // Преобразуем "прижатые" координаты курсора в значения на осях
-        var dataPoint = InverseScalePoint(clampedPos);
-        _tooltip.Text = $"X: {dataPoint.X:F1}\nY: {dataPoint.Y:F1}";
-
-        // Обновляем позицию подсказки, используя реальные координаты курсора
-        Canvas.SetLeft(_tooltip, pos.X + 15);
-        Canvas.SetTop(_tooltip, pos.Y + 15);
+            // Обновляем позицию подсказки (например, правее и ниже курсора)
+            Canvas.SetLeft(_tooltip, pos.X + 15);
+            Canvas.SetTop(_tooltip, pos.Y + 15);
+        }
+        else
+        {
+            // Скрываем элементы, если курсор за пределами области
+            OnCanvasPointerExited(sender, e);
+        }
     }
 
     private void OnCanvasPointerExited(object? sender, PointerEventArgs e)
