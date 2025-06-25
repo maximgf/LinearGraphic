@@ -18,10 +18,6 @@ public class CustomCanvasProvider : IGraphProvider
     
     // Словарь для хранения последних полученных данных для перерисовки
     private Dictionary<string, Model.Point[]> _currentSeriesData = new();
-
-    // Элементы для всплывающей подсказки
-    private Border? _tooltipBorder;
-    private TextBlock? _tooltipTextBlock;
     
     // Панель для легенды
     private StackPanel? _legendPanel;
@@ -42,11 +38,7 @@ public class CustomCanvasProvider : IGraphProvider
         _canvas.HorizontalAlignment = HorizontalAlignment.Stretch;
         _canvas.VerticalAlignment = VerticalAlignment.Stretch;
 
-        SetupTooltip();
         SetupLegend();
-        
-        _canvas.PointerMoved += Canvas_PointerMoved;
-        _canvas.PointerExited += Canvas_PointerExited;
         
         // Подписываемся на событие изменения размера Canvas
         _canvas.SizeChanged += (sender, args) => RebuildChart();
@@ -75,7 +67,6 @@ public class CustomCanvasProvider : IGraphProvider
         DrawSeries();
 
         // Передобавляем элементы, которые должны быть поверх всего
-        _canvas.Children.Add(_tooltipBorder!);
         _canvas.Children.Add(_legendPanel!);
         UpdateLegendPosition();
     }
@@ -230,74 +221,7 @@ public class CustomCanvasProvider : IGraphProvider
         }
     }
     
-    private void Canvas_PointerMoved(object? sender, PointerEventArgs e)
-    {
-        if (_settings == null || _tooltipBorder == null || _tooltipTextBlock == null) return;
-
-        var position = e.GetPosition(_canvas);
-
-        var plotAreaWidth = _canvas.Bounds.Width - _padding.Left - _padding.Right;
-        var plotAreaHeight = _canvas.Bounds.Height - _padding.Top - _padding.Bottom;
-        
-        // Проверяем, находится ли курсор внутри области построения графика
-        if (position.X < _padding.Left || position.X > _padding.Left + plotAreaWidth || 
-            position.Y < _padding.Top || position.Y > _padding.Top + plotAreaHeight)
-        {
-            _tooltipBorder.IsVisible = false;
-            return;
-        }
-
-        // Пересчитываем координаты курсора в значения данных
-        var dataX = _settings.ChartXLevelMin + (position.X - _padding.Left) / plotAreaWidth * (_settings.ChartXLevelMax - _settings.ChartXLevelMin);
-        var dataY = _settings.ChartYLevelMin + (_padding.Top + plotAreaHeight - position.Y) / plotAreaHeight * (_settings.ChartYLevelMax - _settings.ChartYLevelMin);
-
-        _tooltipTextBlock.Text = $"X: {dataX:0.00}\nY: {dataY:0.00}";
-        _tooltipBorder.IsVisible = true;
-        
-        // Позиционирование всплывающей подсказки
-        double left = position.X + 15;
-        double top = position.Y + 15;
-        
-        // Корректируем положение, если подсказка выходит за границы Canvas
-        if (left + _tooltipBorder.Bounds.Width > _canvas.Bounds.Width)
-            left = position.X - _tooltipBorder.Bounds.Width - 15;
-        if (top + _tooltipBorder.Bounds.Height > _canvas.Bounds.Height)
-            top = position.Y - _tooltipBorder.Bounds.Height - 15;
-
-        Canvas.SetLeft(_tooltipBorder, left);
-        Canvas.SetTop(_tooltipBorder, top);
-    }
-    
-    private void Canvas_PointerExited(object? sender, PointerEventArgs e)
-    {
-        if (_tooltipBorder != null)
-            _tooltipBorder.IsVisible = false;
-    }
-    
     #region Setup Methods
-    private void SetupTooltip()
-    {
-        _tooltipTextBlock = new TextBlock
-        {
-            Background = Brushes.Transparent, // Фон задается в Border
-            Foreground = Brushes.Black,
-            Padding = new Thickness(4),
-            FontSize = 12
-        };
-
-        _tooltipBorder = new Border
-        {
-            Child = _tooltipTextBlock,
-            Background = new SolidColorBrush(Colors.White, 0.8), // Полупрозрачный фон
-            BorderBrush = Brushes.Black,
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(4),
-            Padding = new Thickness(2),
-            IsVisible = false,
-            ZIndex = 100 // Поверх всего
-        };
-    }
-    
     private void SetupLegend()
     {
         _legendPanel = new StackPanel
