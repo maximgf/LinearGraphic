@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Collections;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Input;
@@ -15,12 +16,17 @@ public class CustomCanvasProvider : IGraphProvider
 {
     private readonly Canvas _canvas = new();
     private GraphSettings? _settings;
-    
+
     // Словарь для хранения последних полученных данных для перерисовки
     private Dictionary<string, Model.Point[]> _currentSeriesData = new();
-    
+
     // Панель для легенды
     private StackPanel? _legendPanel;
+    
+    // Элементы для отображения координат и перекрестия под курсором
+    private TextBlock? _tooltip;
+    private Line? _crosshairX;
+    private Line? _crosshairY;
 
     // Отступы внутри Canvas для осей и подписей. График будет рисоваться в оставшейся области.
     private readonly Thickness _padding = new(40, 15, 15, 30); // left, top, right, bottom
@@ -33,15 +39,20 @@ public class CustomCanvasProvider : IGraphProvider
 
         // Устанавливаем внешний отступ для всего Canvas
         _canvas.Margin = new Thickness(10);
-        
+
         // Canvas будет занимать все доступное пространство родителя
         _canvas.HorizontalAlignment = HorizontalAlignment.Stretch;
         _canvas.VerticalAlignment = VerticalAlignment.Stretch;
 
         SetupLegend();
-        
+        SetupTooltipAndCrosshairs();
+
         // Подписываемся на событие изменения размера Canvas
         _canvas.SizeChanged += (sender, args) => RebuildChart();
+        
+        // Подписываемся на события мыши для отображения подсказки
+        _canvas.PointerMoved += OnCanvasPointerMoved;
+        _canvas.PointerExited += OnCanvasPointerExited;
     }
 
     /// <summary>
@@ -68,9 +79,13 @@ public class CustomCanvasProvider : IGraphProvider
 
         // Передобавляем элементы, которые должны быть поверх всего
         _canvas.Children.Add(_legendPanel!);
+        _canvas.Children.Add(_tooltip!);
+        _canvas.Children.Add(_crosshairX!);
+        _canvas.Children.Add(_crosshairY!);
+        
         UpdateLegendPosition();
     }
-    
+
     public void UpdateMultipleSeries(Dictionary<string, Model.Point[]> series)
     {
         // Сохраняем новые данные и запускаем полную перерисовку
@@ -78,7 +93,7 @@ public class CustomCanvasProvider : IGraphProvider
         UpdateLegend(_currentSeriesData);
         RebuildChart();
     }
-    
+
     private void DrawSeries()
     {
         if (_currentSeriesData == null) return;
@@ -110,10 +125,31 @@ public class CustomCanvasProvider : IGraphProvider
         // Масштабируем и смещаем точку с учетом отступов (padding)
         double x = _padding.Left + (p.X - _settings.ChartXLevelMin) * plotAreaWidth / xRange;
         double y = _padding.Top + plotAreaHeight - (p.Y - _settings.ChartYLevelMin) * plotAreaHeight / yRange;
-        
+
         return new(x, y);
     }
     
+    private Model.Point InverseScalePoint(Avalonia.Point p)
+    {
+        if (_settings == null) return new(0, 0);
+
+        var plotAreaWidth = _canvas.Bounds.Width - _padding.Left - _padding.Right;
+        var plotAreaHeight = _canvas.Bounds.Height - _padding.Top - _padding.Bottom;
+
+        // Проверка на деление на ноль, если область рисования слишком мала
+        if (plotAreaWidth <= 0 || plotAreaHeight <= 0) return new(0,0);
+        
+        double xRange = _settings.ChartXLevelMax - _settings.ChartXLevelMin;
+        double yRange = _settings.ChartYLevelMax - _settings.ChartYLevelMin;
+
+        // Обратное масштабирование и смещение
+        double x = ((p.X - _padding.Left) * xRange / plotAreaWidth) + _settings.ChartXLevelMin;
+        double y = ((_padding.Top + plotAreaHeight - p.Y) * yRange / plotAreaHeight) + _settings.ChartYLevelMin;
+
+        return new Model.Point(x, y);
+    }
+
+
     private void DrawAxes(double plotAreaWidth, double plotAreaHeight)
     {
         // Ось X
@@ -140,7 +176,7 @@ public class CustomCanvasProvider : IGraphProvider
     private void DrawGrid(double plotAreaWidth, double plotAreaHeight)
     {
         if (_settings == null) return;
-        
+
         // Вертикальные линии сетки
         for (double x = _settings.ChartXLevelMin; x <= _settings.ChartXLevelMax; x += _settings.GridStepX)
         {
@@ -183,12 +219,12 @@ public class CustomCanvasProvider : IGraphProvider
                 FontSize = 10,
                 Foreground = Brushes.Black,
             };
-            
+
             // Принудительно измеряем элемент, чтобы его DesiredSize было рассчитано
             textBlock.Measure(Size.Infinity);
-            
+
             var scaledX = ScalePoint(new Model.Point(x, _settings.ChartYLevelMin)).X;
-            
+
             // Центрируем текст под риской на оси
             Canvas.SetLeft(textBlock, scaledX - (textBlock.DesiredSize.Width / 2));
             Canvas.SetTop(textBlock, _padding.Top + plotAreaHeight + 5);
@@ -204,24 +240,25 @@ public class CustomCanvasProvider : IGraphProvider
                 FontSize = 10,
                 Foreground = Brushes.Black,
             };
-            
+
             // Принудительно измеряем элемент, чтобы его DesiredSize было рассчитано
             textBlock.Measure(Size.Infinity);
-            
+
             var scaledY = ScalePoint(new Model.Point(_settings.ChartXLevelMin, y)).Y;
-            
+
             // Позиционируем текст так, чтобы его правый край находился левее оси Y.
             // Отступ от оси составляет 5 пикселей.
             double textWidth = textBlock.DesiredSize.Width;
-            Canvas.SetLeft(textBlock, _padding.Left - textWidth - 5); 
-            
+            Canvas.SetLeft(textBlock, _padding.Left - textWidth - 5);
+
             // Центрируем текст по вертикали относительно риски на оси
-            Canvas.SetTop(textBlock, scaledY - (textBlock.DesiredSize.Height / 2)); 
+            Canvas.SetTop(textBlock, scaledY - (textBlock.DesiredSize.Height / 2));
             _canvas.Children.Add(textBlock);
         }
     }
     
     #region Setup Methods
+    
     private void SetupLegend()
     {
         _legendPanel = new StackPanel
@@ -234,12 +271,41 @@ public class CustomCanvasProvider : IGraphProvider
         UpdateLegendPosition();
     }
     
+    private void SetupTooltipAndCrosshairs()
+    {
+        _tooltip = new TextBlock
+        {
+            IsVisible = false,
+            Padding = new Thickness(5),
+            Background = new SolidColorBrush(Colors.LightYellow, 0.9),
+            ZIndex = 100 // Поверх всех элементов
+        };
+
+        _crosshairX = new Line
+        {
+            IsVisible = false,
+            Stroke = Brushes.SlateGray,
+            StrokeThickness = 1,
+            StrokeDashArray = new AvaloniaList<double>(4, 4),
+            ZIndex = 20 // Поверх графика, но ниже легенды
+        };
+
+        _crosshairY = new Line
+        {
+            IsVisible = false,
+            Stroke = Brushes.SlateGray,
+            StrokeThickness = 1,
+            StrokeDashArray = new AvaloniaList<double>(4, 4),
+            ZIndex = 20
+        };
+    }
+    
     private void UpdateLegend(Dictionary<string, Model.Point[]> series)
     {
         if (_legendPanel == null) return;
-        
+
         _legendPanel.Children.Clear();
-        
+
         foreach (var kv in series)
         {
             var color = GetColorForSeries(kv.Key);
@@ -248,7 +314,7 @@ public class CustomCanvasProvider : IGraphProvider
                 Orientation = Orientation.Horizontal,
                 Margin = new Thickness(4)
             };
-            
+
             legendItem.Children.Add(new Rectangle
             {
                 Width = 15,
@@ -256,14 +322,14 @@ public class CustomCanvasProvider : IGraphProvider
                 Fill = new SolidColorBrush(color),
                 Margin = new Thickness(0, 0, 5, 0)
             });
-            
+
             legendItem.Children.Add(new TextBlock
             {
                 Text = kv.Key,
                 FontSize = 12,
                 VerticalAlignment = VerticalAlignment.Center
             });
-            
+
             _legendPanel.Children.Add(legendItem);
         }
     }
@@ -275,7 +341,7 @@ public class CustomCanvasProvider : IGraphProvider
         Canvas.SetLeft(_legendPanel, _canvas.Bounds.Width - _legendPanel.DesiredSize.Width - _padding.Right - 10);
         Canvas.SetTop(_legendPanel, _padding.Top + 10);
     }
-    
+
     private static Color GetColorForSeries(string name)
     {
         return name switch
@@ -286,5 +352,54 @@ public class CustomCanvasProvider : IGraphProvider
             _ => Colors.DarkOrange,
         };
     }
+    
+    #endregion
+    
+    #region Pointer Events
+
+    private void OnCanvasPointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (_settings == null || _tooltip == null || _crosshairX == null || _crosshairY == null) return;
+        
+        // Показываем элементы, как только мышь заходит на холст
+        _tooltip.IsVisible = true;
+        _crosshairX.IsVisible = true;
+        _crosshairY.IsVisible = true;
+        
+        var pos = e.GetPosition(_canvas);
+        
+        var plotAreaWidth = _canvas.Bounds.Width - _padding.Left - _padding.Right;
+        var plotAreaHeight = _canvas.Bounds.Height - _padding.Top - _padding.Bottom;
+        
+        if (plotAreaWidth <= 0 || plotAreaHeight <= 0) return;
+
+        // "Прижимаем" координаты к границам области графика
+        var clampedX = Math.Max(_padding.Left, Math.Min(pos.X, _padding.Left + plotAreaWidth));
+        var clampedY = Math.Max(_padding.Top, Math.Min(pos.Y, _padding.Top + plotAreaHeight));
+        var clampedPos = new Avalonia.Point(clampedX, clampedY);
+
+        // Обновляем позицию перекрестия, используя "прижатые" координаты
+        _crosshairX.StartPoint = new Avalonia.Point(_padding.Left, clampedY);
+        _crosshairX.EndPoint = new Avalonia.Point(_padding.Left + plotAreaWidth, clampedY);
+        
+        _crosshairY.StartPoint = new Avalonia.Point(clampedX, _padding.Top);
+        _crosshairY.EndPoint = new Avalonia.Point(clampedX, _padding.Top + plotAreaHeight);
+
+        // Преобразуем "прижатые" координаты курсора в значения на осях
+        var dataPoint = InverseScalePoint(clampedPos);
+        _tooltip.Text = $"X: {dataPoint.X:F1}\nY: {dataPoint.Y:F1}";
+
+        // Обновляем позицию подсказки, используя реальные координаты курсора
+        Canvas.SetLeft(_tooltip, pos.X + 15);
+        Canvas.SetTop(_tooltip, pos.Y + 15);
+    }
+
+    private void OnCanvasPointerExited(object? sender, PointerEventArgs e)
+    {
+        if (_tooltip != null) _tooltip.IsVisible = false;
+        if (_crosshairX != null) _crosshairX.IsVisible = false;
+        if (_crosshairY != null) _crosshairY.IsVisible = false;
+    }
+
     #endregion
 }
