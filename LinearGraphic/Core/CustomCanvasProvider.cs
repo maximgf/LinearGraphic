@@ -186,14 +186,20 @@ public class CustomCanvasProvider : IGraphProvider
         // Подписи оси X
         for (double x = _settings.ChartXLevelMin; x <= _settings.ChartXLevelMax; x += _settings.GridStepX)
         {
-            var scaledX = ScalePoint(new Model.Point(x, _settings.ChartYLevelMin)).X;
             var textBlock = new TextBlock
             {
                 Text = x.ToString("0"),
                 FontSize = 10,
                 Foreground = Brushes.Black,
             };
-            Canvas.SetLeft(textBlock, scaledX - (textBlock.DesiredSize.Width / 2)); // Центрируем текст
+            
+            // Принудительно измеряем элемент, чтобы его DesiredSize было рассчитано
+            textBlock.Measure(Size.Infinity);
+            
+            var scaledX = ScalePoint(new Model.Point(x, _settings.ChartYLevelMin)).X;
+            
+            // Центрируем текст под риской на оси
+            Canvas.SetLeft(textBlock, scaledX - (textBlock.DesiredSize.Width / 2));
             Canvas.SetTop(textBlock, _padding.Top + plotAreaHeight + 5);
             _canvas.Children.Add(textBlock);
         }
@@ -201,15 +207,25 @@ public class CustomCanvasProvider : IGraphProvider
         // Подписи оси Y
         for (double y = _settings.ChartYLevelMin; y <= _settings.ChartYLevelMax; y += _settings.GridStepY)
         {
-            var scaledY = ScalePoint(new Model.Point(_settings.ChartXLevelMin, y)).Y;
             var textBlock = new TextBlock
             {
                 Text = y.ToString("0"),
                 FontSize = 10,
                 Foreground = Brushes.Black,
             };
-            Canvas.SetLeft(textBlock, _padding.Left - textBlock.DesiredSize.Width - 10);
-            Canvas.SetTop(textBlock, scaledY - (textBlock.DesiredSize.Height / 2)); // Центрируем текст
+            
+            // Принудительно измеряем элемент, чтобы его DesiredSize было рассчитано
+            textBlock.Measure(Size.Infinity);
+            
+            var scaledY = ScalePoint(new Model.Point(_settings.ChartXLevelMin, y)).Y;
+            
+            // Позиционируем текст так, чтобы его правый край находился левее оси Y.
+            // Отступ от оси составляет 5 пикселей.
+            double textWidth = textBlock.DesiredSize.Width;
+            Canvas.SetLeft(textBlock, _padding.Left - textWidth - 5); 
+            
+            // Центрируем текст по вертикали относительно риски на оси
+            Canvas.SetTop(textBlock, scaledY - (textBlock.DesiredSize.Height / 2)); 
             _canvas.Children.Add(textBlock);
         }
     }
