@@ -5,14 +5,27 @@ using System.Collections.Generic;
 
 namespace ViewModels;
 
+/// <summary>
+/// ViewModel для линейного графика, связывающая данные точек с их визуальным представлением.
+/// Обеспечивает обновление графика при изменении данных или настроек.
+/// </summary>
 public class LinearGraphViewModel
 {
     private readonly PointsContext _pointsContext;
     private readonly GraphSettings _graphSettings;
     private readonly IGraphProvider _graphProvider;
 
+    /// <summary>
+    /// Возвращает элемент управления графиком.
+    /// </summary>
     public object GraphControl => _graphProvider.GetGraphControl();
 
+    /// <summary>
+    /// Инициализирует новый экземпляр LinearGraphViewModel.
+    /// </summary>
+    /// <param name="pointsContext">Контекст точек данных.</param>
+    /// <param name="graphSettings">Настройки графика.</param>
+    /// <param name="graphProvider">Провайдер графиков.</param>
     public LinearGraphViewModel(PointsContext pointsContext, GraphSettings graphSettings, IGraphProvider graphProvider)
     {
         _pointsContext = pointsContext;
@@ -25,12 +38,18 @@ public class LinearGraphViewModel
         UpdateAll();
     }
 
+    /// <summary>
+    /// Обновляет все компоненты графика.
+    /// </summary>
     private void UpdateAll()
     {
         UpdateSeries();
         UpdateAxes();
     }
 
+    /// <summary>
+    /// Обновляет серии данных на графике.
+    /// </summary>
     private void UpdateSeries()
     {
         var series = new Dictionary<string, Point[]>();
@@ -52,6 +71,9 @@ public class LinearGraphViewModel
         _graphProvider.UpdateMultipleSeries(series);
     }
 
+    /// <summary>
+    /// Обновляет настройки осей графика.
+    /// </summary>
     private void UpdateAxes()
     {
         _graphProvider.Initialize(_graphSettings);

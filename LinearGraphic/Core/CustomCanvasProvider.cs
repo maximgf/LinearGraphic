@@ -12,51 +12,71 @@ using System.Linq;
 
 namespace Core;
 
+/// <summary>
+/// Провайдер графиков, использующий кастомную реализацию на основе Avalonia Canvas.
+/// Реализует интерфейс IGraphProvider для отрисовки графиков с использованием базовых элементов Avalonia.
+/// Включает функционал для отображения сетки, осей, легенды и перекрестия с координатами.
+/// </summary>
 public class CustomCanvasProvider : IGraphProvider
 {
+    /// <summary>
+    /// Основной элемент Canvas для отрисовки графика.
+    /// </summary>
     private readonly Canvas _canvas = new();
+    
+    /// <summary>
+    /// Настройки графика, включая пределы осей и шаг сетки.
+    /// </summary>
     private GraphSettings? _settings;
 
-    // Словарь для хранения последних полученных данных для перерисовки
+    /// <summary>
+    /// Текущие данные серий для отображения на графике.
+    /// </summary>
     private Dictionary<string, Model.Point[]> _currentSeriesData = new();
 
-    // Панель для легенды
+    /// <summary>
+    /// Панель для отображения легенды графика.
+    /// </summary>
     private StackPanel? _legendPanel;
     
-    // Элементы для отображения координат и перекрестия под курсором
+    /// <summary>
+    /// Элементы для отображения координат и перекрестия под курсором.
+    /// </summary>
     private TextBlock? _tooltip;
     private Line? _crosshairX;
     private Line? _crosshairY;
 
-    // Отступы внутри Canvas для осей и подписей. График будет рисоваться в оставшейся области.
-    private readonly Thickness _padding = new(40, 15, 15, 30); // left, top, right, bottom
+    /// <summary>
+    /// Отступы внутри Canvas для осей и подписей.
+    /// </summary>
+    private readonly Thickness _padding = new(40, 15, 15, 30);
 
+    /// <summary>
+    /// Возвращает основной элемент управления графиком.
+    /// </summary>
     public object GetGraphControl() => _canvas;
 
+    /// <summary>
+    /// Инициализирует провайдер с указанными настройками графика.
+    /// Настраивает базовые параметры Canvas, легенду и элементы управления.
+    /// </summary>
+    /// <param name="settings">Настройки графика.</param>
     public void Initialize(GraphSettings settings)
     {
         _settings = settings;
-
-        // Устанавливаем внешний отступ для всего Canvas
         _canvas.Margin = new Thickness(10);
-
-        // Canvas будет занимать все доступное пространство родителя
         _canvas.HorizontalAlignment = HorizontalAlignment.Stretch;
         _canvas.VerticalAlignment = VerticalAlignment.Stretch;
 
         SetupLegend();
         SetupTooltipAndCrosshairs();
-
-        // Подписываемся на событие изменения размера Canvas
         _canvas.SizeChanged += (sender, args) => RebuildChart();
-        
-        // Подписываемся на события мыши для отображения подсказки
         _canvas.PointerMoved += OnCanvasPointerMoved;
         _canvas.PointerExited += OnCanvasPointerExited;
     }
 
     /// <summary>
-    /// Центральный метод для полной перерисовки всего содержимого Canvas.
+    /// Основной метод для полной перерисовки содержимого Canvas.
     /// Вызывается при изменении размера или обновлении данных.
     /// </summary>
     private void RebuildChart()
@@ -64,12 +84,9 @@ public class CustomCanvasProvider : IGraphProvider
         if (_settings == null) return;
 
         _canvas.Children.Clear();
-
-        // Размеры области, доступной для рисования самого графика (за вычетом отступов)
         var plotAreaWidth = _canvas.Bounds.Width - _padding.Left - _padding.Right;
         var plotAreaHeight = _canvas.Bounds.Height - _padding.Top - _padding.Bottom;
 
-        // Проверка, что область для рисования имеет корректные размеры
         if (plotAreaWidth <= 0 || plotAreaHeight <= 0) return;
 
         DrawGrid(plotAreaWidth, plotAreaHeight);
@@ -77,23 +94,27 @@ public class CustomCanvasProvider : IGraphProvider
         DrawAxisLabels(plotAreaWidth, plotAreaHeight);
         DrawSeries();
 
-        // Передобавляем элементы, которые должны быть поверх всего
         _canvas.Children.Add(_legendPanel!);
         _canvas.Children.Add(_tooltip!);
         _canvas.Children.Add(_crosshairX!);
         _canvas.Children.Add(_crosshairY!);
-        
         UpdateLegendPosition();
     }
 
+    /// <summary>
+    /// Обновляет данные для нескольких серий на графике.
+    /// </summary>
+    /// <param name="series">Словарь с данными серий.</param>
     public void UpdateMultipleSeries(Dictionary<string, Model.Point[]> series)
     {
-        // Сохраняем новые данные и запускаем полную перерисовку
         _currentSeriesData = series ?? new Dictionary<string, Model.Point[]>();
         UpdateLegend(_currentSeriesData);
         RebuildChart();
     }
 
+    /// <summary>
+    /// Отрисовывает серии данных на графике.
+    /// </summary>
     private void DrawSeries()
     {
         if (_currentSeriesData == null) return;
@@ -106,12 +127,17 @@ public class CustomCanvasProvider : IGraphProvider
                 Points = new Points(kv.Value.Select(ScalePoint)),
                 Stroke = new SolidColorBrush(color),
                 StrokeThickness = 2,
-                ZIndex = 10 // Графики должны быть выше сетки и осей
+                ZIndex = 10
             };
             _canvas.Children.Add(polyline);
         }
     }
 
+    /// <summary>
+    /// Масштабирует точку данных в координаты Canvas с учетом отступов.
+    /// </summary>
+    /// <param name="p">Точка данных.</param>
+    /// <returns>Точка в координатах Canvas.</returns>
     private Avalonia.Point ScalePoint(Model.Point p)
     {
         if (_settings == null) return new(0, 0);
@@ -122,37 +148,40 @@ public class CustomCanvasProvider : IGraphProvider
         double xRange = _settings.ChartXLevelMax - _settings.ChartXLevelMin;
         double yRange = _settings.ChartYLevelMax - _settings.ChartYLevelMin;
 
-        // Масштабируем и смещаем точку с учетом отступов (padding)
         double x = _padding.Left + (p.X - _settings.ChartXLevelMin) * plotAreaWidth / xRange;
         double y = _padding.Top + plotAreaHeight - (p.Y - _settings.ChartYLevelMin) * plotAreaHeight / yRange;
 
         return new(x, y);
     }
     
+    /// <summary>
+    /// Преобразует координаты Canvas обратно в данные.
+    /// </summary>
+    /// <param name="p">Точка в координатах Canvas.</param>
+    /// <returns>Точка данных.</returns>
     private Model.Point InverseScalePoint(Avalonia.Point p)
     {
         if (_settings == null) return new(0, 0);
 
         var plotAreaWidth = _canvas.Bounds.Width - _padding.Left - _padding.Right;
         var plotAreaHeight = _canvas.Bounds.Height - _padding.Top - _padding.Bottom;
-
-        // Проверка на деление на ноль, если область рисования слишком мала
+        
         if (plotAreaWidth <= 0 || plotAreaHeight <= 0) return new(0,0);
         
         double xRange = _settings.ChartXLevelMax - _settings.ChartXLevelMin;
         double yRange = _settings.ChartYLevelMax - _settings.ChartYLevelMin;
 
-        // Обратное масштабирование и смещение
         double x = ((p.X - _padding.Left) * xRange / plotAreaWidth) + _settings.ChartXLevelMin;
         double y = ((_padding.Top + plotAreaHeight - p.Y) * yRange / plotAreaHeight) + _settings.ChartYLevelMin;
 
         return new Model.Point(x, y);
     }
 
-
+    /// <summary>
+    /// Отрисовывает оси X и Y на графике.
+    /// </summary>
     private void DrawAxes(double plotAreaWidth, double plotAreaHeight)
     {
-        // Ось X
         _canvas.Children.Add(new Line
         {
             StartPoint = new(_padding.Left, _padding.Top + plotAreaHeight),
@@ -162,7 +191,6 @@ public class CustomCanvasProvider : IGraphProvider
             ZIndex = 1
         });
 
-        // Ось Y
         _canvas.Children.Add(new Line
         {
             StartPoint = new(_padding.Left, _padding.Top),
@@ -173,11 +201,13 @@ public class CustomCanvasProvider : IGraphProvider
         });
     }
 
+    /// <summary>
+    /// Отрисовывает сетку на графике.
+    /// </summary>
     private void DrawGrid(double plotAreaWidth, double plotAreaHeight)
     {
         if (_settings == null) return;
 
-        // Вертикальные линии сетки
         for (double x = _settings.ChartXLevelMin; x <= _settings.ChartXLevelMax; x += _settings.GridStepX)
         {
             var scaledX = ScalePoint(new Model.Point(x, _settings.ChartYLevelMin)).X;
@@ -191,7 +221,6 @@ public class CustomCanvasProvider : IGraphProvider
             });
         }
 
-        // Горизонтальные линии сетки
         for (double y = _settings.ChartYLevelMin; y <= _settings.ChartYLevelMax; y += _settings.GridStepY)
         {
             var scaledY = ScalePoint(new Model.Point(_settings.ChartXLevelMin, y)).Y;
@@ -206,11 +235,13 @@ public class CustomCanvasProvider : IGraphProvider
         }
     }
 
+    /// <summary>
+    /// Отрисовывает подписи осей X и Y.
+    /// </summary>
     private void DrawAxisLabels(double plotAreaWidth, double plotAreaHeight)
     {
         if (_settings == null) return;
 
-        // Подписи оси X
         for (double x = _settings.ChartXLevelMin; x <= _settings.ChartXLevelMax; x += _settings.GridStepX)
         {
             var textBlock = new TextBlock
@@ -219,19 +250,13 @@ public class CustomCanvasProvider : IGraphProvider
                 FontSize = 10,
                 Foreground = Brushes.Black,
             };
-
-            // Принудительно измеряем элемент, чтобы его DesiredSize было рассчитано
             textBlock.Measure(Size.Infinity);
-
             var scaledX = ScalePoint(new Model.Point(x, _settings.ChartYLevelMin)).X;
-
-            // Центрируем текст под риской на оси
             Canvas.SetLeft(textBlock, scaledX - (textBlock.DesiredSize.Width / 2));
             Canvas.SetTop(textBlock, _padding.Top + plotAreaHeight + 5);
             _canvas.Children.Add(textBlock);
         }
 
-        // Подписи оси Y
         for (double y = _settings.ChartYLevelMin; y <= _settings.ChartYLevelMax; y += _settings.GridStepY)
         {
             var textBlock = new TextBlock
@@ -240,18 +265,9 @@ public class CustomCanvasProvider : IGraphProvider
                 FontSize = 10,
                 Foreground = Brushes.Black,
             };
-
-            // Принудительно измеряем элемент, чтобы его DesiredSize было рассчитано
             textBlock.Measure(Size.Infinity);
-
             var scaledY = ScalePoint(new Model.Point(_settings.ChartXLevelMin, y)).Y;
-
-            // Позиционируем текст так, чтобы его правый край находился левее оси Y.
-            // Отступ от оси составляет 5 пикселей.
-            double textWidth = textBlock.DesiredSize.Width;
-            Canvas.SetLeft(textBlock, _padding.Left - textWidth - 5);
-
-            // Центрируем текст по вертикали относительно риски на оси
+            Canvas.SetLeft(textBlock, _padding.Left - textBlock.DesiredSize.Width - 5);
             Canvas.SetTop(textBlock, scaledY - (textBlock.DesiredSize.Height / 2));
             _canvas.Children.Add(textBlock);
         }
@@ -259,6 +275,9 @@ public class CustomCanvasProvider : IGraphProvider
     
     #region Setup Methods
     
+    /// <summary>
+    /// Настраивает панель легенды графика.
+    /// </summary>
     private void SetupLegend()
     {
         _legendPanel = new StackPanel
@@ -266,11 +285,14 @@ public class CustomCanvasProvider : IGraphProvider
             Orientation = Orientation.Vertical,
             Background = new SolidColorBrush(Colors.WhiteSmoke, 0.8),
             Margin = new Thickness(5),
-            ZIndex = 50 // Поверх графика, но ниже подсказки
+            ZIndex = 50
         };
         UpdateLegendPosition();
     }
     
+    /// <summary>
+    /// Настраивает элементы подсказки и перекрестия.
+    /// </summary>
     private void SetupTooltipAndCrosshairs()
     {
         _tooltip = new TextBlock
@@ -278,7 +300,7 @@ public class CustomCanvasProvider : IGraphProvider
             IsVisible = false,
             Padding = new Thickness(5),
             Background = new SolidColorBrush(Colors.LightYellow, 0.9),
-            ZIndex = 100 // Поверх всех элементов
+            ZIndex = 100
         };
 
         _crosshairX = new Line
@@ -287,7 +309,7 @@ public class CustomCanvasProvider : IGraphProvider
             Stroke = Brushes.SlateGray,
             StrokeThickness = 1,
             StrokeDashArray = new AvaloniaList<double>(4, 4),
-            ZIndex = 20 // Поверх графика, но ниже легенды
+            ZIndex = 20
         };
 
         _crosshairY = new Line
@@ -300,6 +322,10 @@ public class CustomCanvasProvider : IGraphProvider
         };
     }
     
+    /// <summary>
+    /// Обновляет содержимое легенды на основе данных серий.
+    /// </summary>
+    /// <param name="series">Данные серий для отображения в легенде.</param>
     private void UpdateLegend(Dictionary<string, Model.Point[]> series)
     {
         if (_legendPanel == null) return;
@@ -334,14 +360,21 @@ public class CustomCanvasProvider : IGraphProvider
         }
     }
 
+    /// <summary>
+    /// Обновляет позицию легенды на графике.
+    /// </summary>
     private void UpdateLegendPosition()
     {
         if (_legendPanel == null) return;
-        // Позиционируем легенду в правом верхнем углу области построения
         Canvas.SetLeft(_legendPanel, _canvas.Bounds.Width - _legendPanel.DesiredSize.Width - _padding.Right - 10);
         Canvas.SetTop(_legendPanel, _padding.Top + 10);
     }
 
+    /// <summary>
+    /// Возвращает цвет для серии по ее имени.
+    /// </summary>
+    /// <param name="name">Имя серии.</param>
+    /// <returns>Цвет для отображения серии.</returns>
     private static Color GetColorForSeries(string name)
     {
         return name switch
@@ -357,16 +390,17 @@ public class CustomCanvasProvider : IGraphProvider
     
     #region Pointer Events
 
+    /// <summary>
+    /// Обрабатывает перемещение указателя мыши по графику.
+    /// </summary>
     private void OnCanvasPointerMoved(object? sender, PointerEventArgs e)
     {
         if (_settings == null || _tooltip == null || _crosshairX == null || _crosshairY == null) return;
 
         var pos = e.GetPosition(_canvas);
-        
         var plotAreaWidth = _canvas.Bounds.Width - _padding.Left - _padding.Right;
         var plotAreaHeight = _canvas.Bounds.Height - _padding.Top - _padding.Bottom;
 
-        // Проверяем, находится ли курсор внутри области рисования графика
         bool isInsidePlotArea = pos.X >= _padding.Left && pos.X <= _padding.Left + plotAreaWidth &&
                                 pos.Y >= _padding.Top && pos.Y <= _padding.Top + plotAreaHeight;
         
@@ -376,28 +410,27 @@ public class CustomCanvasProvider : IGraphProvider
             _crosshairX.IsVisible = true;
             _crosshairY.IsVisible = true;
 
-            // Обновляем позицию перекрестия
             _crosshairX.StartPoint = new Avalonia.Point(_padding.Left, pos.Y);
             _crosshairX.EndPoint = new Avalonia.Point(_padding.Left + plotAreaWidth, pos.Y);
             
             _crosshairY.StartPoint = new Avalonia.Point(pos.X, _padding.Top);
             _crosshairY.EndPoint = new Avalonia.Point(pos.X, _padding.Top + plotAreaHeight);
 
-            // Преобразуем координаты курсора в значения на осях
             var dataPoint = InverseScalePoint(pos);
             _tooltip.Text = $"X: {dataPoint.X:F1}\nY: {dataPoint.Y:F1}";
 
-            // Обновляем позицию подсказки (например, правее и ниже курсора)
             Canvas.SetLeft(_tooltip, pos.X + 15);
             Canvas.SetTop(_tooltip, pos.Y + 15);
         }
         else
         {
-            // Скрываем элементы, если курсор за пределами области
             OnCanvasPointerExited(sender, e);
         }
     }
 
+    /// <summary>
+    /// Обрабатывает выход указателя мыши за пределы графика.
+    /// </summary>
     private void OnCanvasPointerExited(object? sender, PointerEventArgs e)
     {
         if (_tooltip != null) _tooltip.IsVisible = false;
