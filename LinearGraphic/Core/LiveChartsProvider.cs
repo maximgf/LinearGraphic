@@ -118,7 +118,7 @@ public class LiveChartsProvider : IGraphProvider
                     Name = kv.Key,
                     Values = kv.Value,
                     Mapping = (p, _) => new(p.X, p.Y),
-                    GeometrySize = 0,
+                    GeometrySize = -1,
                     Stroke = new SolidColorPaint(color, 2),
                     Fill = null,
                     LineSmoothness = kv.Key == "Common" && _settings?.Extrapolation == true ? 1 : 0
